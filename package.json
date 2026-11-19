@@ -1,0 +1,12 @@
+{
+  "name": "used-trade-damage-guide",
+  "version": "0.1.0",
+  "private": true,
+  "description": "중고거래 피해 대응 길잡이 (온라인피해 365센터 상담 전 안내 도구)",
+  "scripts": {
+    "start": "node --env-file=.env server.js"
+  },
+  "engines": {
+    "node": ">=20.6"
+  }
+}

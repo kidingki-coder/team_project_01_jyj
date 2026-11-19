@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>시스템 설계도 - 중고거래 피해 대응 길잡이</title>
+  <style>
+    @page { size: A4 portrait; margin: 0; }
+    html, body { margin: 0; padding: 0; background: #ffffff; }
+    body { font-family: "Noto Sans KR", "Malgun Gothic", "맑은 고딕", "Apple SD Gothic Neo", sans-serif; }
+    .page { width: 794px; height: 1123px; margin: 0 auto; }
+    svg { display: block; width: 794px; height: 1123px; }
+    @media print {
+      html, body { width: 210mm; height: 297mm; }
+      .page { margin: 0; }
+    }
+  </style>
+</head>
+<body>
+<div class="page">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 794 1123" role="img" aria-labelledby="system-design-title system-design-desc">
+  <title id="system-design-title">중고거래 피해 대응 길잡이 시스템 설계도</title>
+  <desc id="system-design-desc">이용자 브라우저에서 입력한 내용이 화면, 서버 함수, 공통 로직(개인정보 가리기, 위기 단어 감지, 규칙표 분류, AI 호출)을 거쳐 외부 AI 3종에 전달되는 흐름과, GitHub에서 Vercel로 배포되는 경로를 위에서 아래로 보여 준다. 아직 없는 상담원 연결과 사진 입력은 점선으로 표시했다.</desc>
+
+  <defs>
+    <marker id="arr" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#4E5968"/>
+    </marker>
+    <marker id="arr-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#3182F6"/>
+    </marker>
+  </defs>
+
+  <!-- 배경 -->
+  <rect width="794" height="1123" fill="#FFFFFF"/>
+
+  <!-- 머리말 -->
+  <text x="40" y="40" fill="#6B7684" font-size="12" font-weight="500">SYSTEM DESIGN</text>
+  <text x="40" y="72" fill="#191F28" font-size="24" font-weight="700">중고거래 피해 대응 길잡이 · 시스템 설계도</text>
+  <text x="40" y="96" fill="#4E5968" font-size="12">위에서 아래로: 이용자 → 화면 → 서버 함수 → 공통 로직 → 외부 AI</text>
+
+  <!-- 구역 -->
+  <rect x="40" y="112" width="674" height="124" rx="8" fill="#F9FAFB" stroke="#E5E8EB" stroke-width="1"/>
+  <text x="56" y="132" fill="#6B7684" font-size="10" font-weight="700">이용자 브라우저</text>
+
+  <rect x="40" y="252" width="674" height="432" rx="8" fill="#F9FAFB" stroke="#E5E8EB" stroke-width="1"/>
+  <text x="698" y="272" fill="#6B7684" font-size="10" font-weight="700" text-anchor="end">서버 · Vercel / 로컬</text>
+
+  <rect x="40" y="692" width="674" height="176" rx="8" fill="#F9FAFB" stroke="#E5E8EB" stroke-width="1"/>
+  <text x="56" y="856" fill="#6B7684" font-size="10" font-weight="700">외부 AI 서비스 · 키는 .env 또는 Vercel 환경변수에서만 읽음</text>
+
+  <!-- 연결선 (먼저 그린다: 상자 뒤로 보내기) -->
+  <!-- 사용자 → 화면 -->
+  <line x1="398" y1="204" x2="398" y2="300" stroke="#4E5968" stroke-width="1.2" marker-end="url(#arr)"/>
+  <!-- 화면 → 서버 함수 -->
+  <line x1="398" y1="364" x2="398" y2="400" stroke="#4E5968" stroke-width="1.2" marker-end="url(#arr)"/>
+  <!-- 서버 함수 → lib -->
+  <line x1="398" y1="464" x2="398" y2="496" stroke="#4E5968" stroke-width="1.2" marker-end="url(#arr)"/>
+
+  <!-- lib → 외부 AI (1순위 Claude: 둥근 꺾임) -->
+  <path d="M160 592 V704 Q160 712 152 712 H138 Q130 712 130 720 V740" fill="none" stroke="#3182F6" stroke-width="1.4" marker-end="url(#arr-accent)"/>
+  <!-- lib → 외부 AI (2순위 Groq: 직선) -->
+  <line x1="377" y1="592" x2="377" y2="740" stroke="#4E5968" stroke-width="1.2" marker-end="url(#arr)"/>
+  <!-- lib → 외부 AI (3순위 Gemini: 둥근 꺾임) -->
+  <path d="M600 592 V704 Q600 712 608 712 H616 Q624 712 624 720 V740" fill="none" stroke="#4E5968" stroke-width="1.2" marker-end="url(#arr)"/>
+
+  <!-- 사진 입력 → 화면 (미구현, 점선) -->
+  <path d="M138 204 V332 H300" fill="none" stroke="#6B7684" stroke-width="1.2" stroke-dasharray="4,3" marker-end="url(#arr)"/>
+  <!-- 화면 → 상담원 연결 (미구현, 점선) -->
+  <path d="M496 332 H618 V204" fill="none" stroke="#6B7684" stroke-width="1.2" stroke-dasharray="4,3" marker-end="url(#arr)"/>
+
+  <!-- 배포: GitHub → Vercel -->
+  <line x1="200" y1="926" x2="296" y2="926" stroke="#4E5968" stroke-width="1.2" marker-end="url(#arr)"/>
+
+  <!-- 연결선 라벨 (마스크 + 6px 이상 간격) -->
+  <rect x="406" y="244" width="96" height="14" rx="2" fill="#F9FAFB"/>
+  <text x="410" y="255" fill="#4E5968" font-size="9">문장·버튼 입력</text>
+
+  <rect x="406" y="378" width="104" height="14" rx="2" fill="#F9FAFB"/>
+  <text x="410" y="389" fill="#4E5968" font-size="9">POST /api/extract</text>
+
+  <rect x="406" y="474" width="64" height="14" rx="2" fill="#F9FAFB"/>
+  <text x="410" y="485" fill="#4E5968" font-size="9">분류 요청</text>
+
+  <rect x="146" y="252" width="112" height="14" rx="2" fill="#F9FAFB"/>
+  <text x="150" y="263" fill="#6B7684" font-size="9">사진 → 글자 (미구현)</text>
+
+  <rect x="626" y="300" width="88" height="14" rx="2" fill="#F9FAFB"/>
+  <text x="630" y="311" fill="#6B7684" font-size="9">정리표 전달 (미구현)</text>
+
+  <rect x="168" y="630" width="88" height="14" rx="2" fill="#F9FAFB"/>
+  <text x="172" y="641" fill="#3182F6" font-size="9" font-weight="700">1순위 CLAUDE</text>
+
+  <rect x="385" y="630" width="100" height="14" rx="2" fill="#F9FAFB"/>
+  <text x="389" y="641" fill="#4E5968" font-size="9">2순위 · 실패 시</text>
+
+  <rect x="608" y="630" width="100" height="14" rx="2" fill="#F9FAFB"/>
+  <text x="612" y="641" fill="#4E5968" font-size="9">3순위 · 실패 시</text>
+
+  <rect x="220" y="926" width="56" height="14" rx="2" fill="#FFFFFF"/>
+  <text x="224" y="937" fill="#4E5968" font-size="9">자동 배포</text>
+
+  <!-- 1. 이용자 (실선) -->
+  <rect x="300" y="144" width="196" height="60" rx="6" fill="#FFFFFF" stroke="#191F28" stroke-width="1"/>
+  <text x="398" y="168" fill="#191F28" font-size="12" font-weight="700" text-anchor="middle">이용자</text>
+  <text x="398" y="186" fill="#4E5968" font-size="9" text-anchor="middle">피해자 · 휴대폰·PC 브라우저</text>
+
+  <!-- 사진 입력 (미구현, 점선) -->
+  <rect x="40" y="144" width="196" height="60" rx="6" fill="#FFFFFF" stroke="#6B7684" stroke-width="1" stroke-dasharray="4,3"/>
+  <text x="138" y="168" fill="#6B7684" font-size="12" font-weight="700" text-anchor="middle">사진 입력</text>
+  <text x="138" y="186" fill="#6B7684" font-size="9" text-anchor="middle">미구현 · 대화 캡처 글자 변환 예정</text>
+
+  <!-- 상담원 연결 (미구현, 점선) -->
+  <rect x="520" y="144" width="196" height="60" rx="6" fill="#FFFFFF" stroke="#6B7684" stroke-width="1" stroke-dasharray="4,3"/>
+  <text x="618" y="168" fill="#6B7684" font-size="12" font-weight="700" text-anchor="middle">365센터 상담원</text>
+  <text x="618" y="186" fill="#6B7684" font-size="9" text-anchor="middle">미구현 · 정리표 전달 예정</text>
+
+  <!-- 2. 화면 (실선) -->
+  <rect x="300" y="300" width="196" height="64" rx="6" fill="#FFFFFF" stroke="#191F28" stroke-width="1"/>
+  <text x="398" y="324" fill="#191F28" font-size="12" font-weight="700" text-anchor="middle">화면</text>
+  <text x="398" y="344" fill="#4E5968" font-size="9" text-anchor="middle">public/ · HTML · JS · CSS</text>
+
+  <!-- 3. 서버 함수 (실선) -->
+  <rect x="300" y="400" width="196" height="64" rx="6" fill="#FFFFFF" stroke="#191F28" stroke-width="1"/>
+  <text x="398" y="424" fill="#191F28" font-size="12" font-weight="700" text-anchor="middle">서버 함수</text>
+  <text x="398" y="444" fill="#4E5968" font-size="9" text-anchor="middle">api/extract · api/diagnose</text>
+
+  <!-- 4. lib 묶음 (실선, 핵심 2개 강조) -->
+  <rect x="144" y="496" width="508" height="96" rx="6" fill="#FFFFFF" stroke="#191F28" stroke-width="1"/>
+  <text x="398" y="516" fill="#191F28" font-size="11" font-weight="700" text-anchor="middle">lib/ · 공통 로직</text>
+
+  <rect x="160" y="524" width="108" height="52" rx="6" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.2"/>
+  <text x="214" y="544" fill="#191F28" font-size="10" font-weight="700" text-anchor="middle">개인정보 가리기</text>
+  <text x="214" y="563" fill="#4E5968" font-size="8" text-anchor="middle">redact.js</text>
+
+  <rect x="280" y="524" width="108" height="52" rx="6" fill="#FFFFFF" stroke="#191F28" stroke-width="1"/>
+  <text x="334" y="544" fill="#191F28" font-size="10" font-weight="700" text-anchor="middle">위기 단어 감지</text>
+  <text x="334" y="563" fill="#4E5968" font-size="8" text-anchor="middle">crisis.js</text>
+
+  <rect x="400" y="524" width="108" height="52" rx="6" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.2"/>
+  <text x="454" y="544" fill="#191F28" font-size="10" font-weight="700" text-anchor="middle">규칙표 분류</text>
+  <text x="454" y="563" fill="#4E5968" font-size="8" text-anchor="middle">rules.js</text>
+
+  <rect x="520" y="524" width="108" height="52" rx="6" fill="#FFFFFF" stroke="#191F28" stroke-width="1"/>
+  <text x="574" y="544" fill="#191F28" font-size="10" font-weight="700" text-anchor="middle">AI 호출</text>
+  <text x="574" y="563" fill="#4E5968" font-size="8" text-anchor="middle">ai.js · 사실 항목만</text>
+
+  <!-- 5. 외부 AI 3종 (실선) -->
+  <rect x="40" y="740" width="180" height="64" rx="6" fill="#FFFFFF" stroke="#191F28" stroke-width="1"/>
+  <text x="130" y="764" fill="#191F28" font-size="12" font-weight="700" text-anchor="middle">Claude</text>
+  <text x="130" y="786" fill="#4E5968" font-size="9" text-anchor="middle">claude-haiku-5-5 · CLAUDE_API_KEY</text>
+
+  <rect x="287" y="740" width="180" height="64" rx="6" fill="#FFFFFF" stroke="#191F28" stroke-width="1"/>
+  <text x="377" y="764" fill="#191F28" font-size="12" font-weight="700" text-anchor="middle">Groq</text>
+  <text x="377" y="786" fill="#4E5968" font-size="9" text-anchor="middle">openai/gpt-oss-120b · GROQ_API_KEY</text>
+
+  <rect x="534" y="740" width="180" height="64" rx="6" fill="#FFFFFF" stroke="#191F28" stroke-width="1"/>
+  <text x="624" y="764" fill="#191F28" font-size="12" font-weight="700" text-anchor="middle">Gemini</text>
+  <text x="624" y="786" fill="#4E5968" font-size="9" text-anchor="middle">gemini-2.5-flash · GEMINI_API_KEY</text>
+
+  <!-- 6. 배포 경로 -->
+  <text x="40" y="896" fill="#6B7684" font-size="10" font-weight="700">배포 경로</text>
+  <rect x="40" y="904" width="160" height="44" rx="6" fill="#FFFFFF" stroke="#191F28" stroke-width="1"/>
+  <text x="120" y="922" fill="#191F28" font-size="11" font-weight="700" text-anchor="middle">GitHub</text>
+  <text x="120" y="938" fill="#4E5968" font-size="8" text-anchor="middle">소스 저장 (.env 제외)</text>
+
+  <rect x="296" y="904" width="240" height="44" rx="6" fill="#FFFFFF" stroke="#191F28" stroke-width="1"/>
+  <text x="416" y="922" fill="#191F28" font-size="11" font-weight="700" text-anchor="middle">Vercel</text>
+  <text x="416" y="938" fill="#4E5968" font-size="8" text-anchor="middle">public 배포 · /api 서버 함수 · 환경변수</text>
+
+  <!-- 범례 -->
+  <line x1="40" y1="976" x2="714" y2="976" stroke="#E5E8EB" stroke-width="1"/>
+  <rect x="40" y="992" width="28" height="14" rx="3" fill="#FFFFFF" stroke="#191F28" stroke-width="1"/>
+  <text x="76" y="1003" fill="#4E5968" font-size="9">현재 구현</text>
+  <rect x="150" y="992" width="28" height="14" rx="3" fill="#FFFFFF" stroke="#6B7684" stroke-width="1" stroke-dasharray="4,3"/>
+  <text x="186" y="1003" fill="#4E5968" font-size="9">미구현</text>
+  <rect x="250" y="992" width="28" height="14" rx="3" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.2"/>
+  <text x="286" y="1003" fill="#4E5968" font-size="9">판단·개인정보 핵심</text>
+  <line x1="420" y1="999" x2="452" y2="999" stroke="#4E5968" stroke-width="1.2" marker-end="url(#arr)"/>
+  <text x="460" y="1003" fill="#4E5968" font-size="9">호출 흐름</text>
+
+  <!-- 바닥글 -->
+  <text x="40" y="1040" fill="#6B7684" font-size="9">작성일 2026-11-19 · 1차 완성 시제품 기준 · 개인정보와 API 키 값은 표시하지 않음</text>
+</svg>
+</div>
+</body>
+</html>

@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>중고거래 피해 대응 길잡이</title>
+  <meta name="description" content="중고거래 피해를 당했을 때 어느 기관에 먼저 가야 하는지 안내합니다. 사기 여부를 판정하지 않습니다." />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <main class="wrap">
+    <header class="hero">
+      <p class="eyebrow">온라인피해 365센터 상담 전 안내</p>
+      <h1>중고거래 피해 대응 길잡이</h1>
+      <p class="lead">대화하듯 답해 주시면 어디에 먼저 가야 하는지 안내해 드려요. 사기 여부를 판정하지 않아요.</p>
+    </header>
+
+    <section class="notice" aria-label="주의사항">
+      <p><strong>돈·비밀번호·인증번호는 묻지 않아요.</strong> 365센터나 길잡이를 사칭해 돈을 요구하면 응하지 마세요.</p>
+    </section>
+
+    <section id="crisisStatic" class="card crisis-static" aria-label="위기 안내">
+      <p class="card-title">지금 많이 힘드시다면</p>
+      <p>자살예방 상담전화 <strong>109</strong> 로 바로 연결할 수 있어요.</p>
+    </section>
+
+    <section class="chat-card" aria-label="대화">
+      <div id="chat" class="chat" aria-live="polite"></div>
+      <form id="composer" class="composer" autocomplete="off">
+        <textarea id="input" rows="2" maxlength="4000" placeholder="상황을 편하게 적어 주세요 (대화 내용도 붙여넣을 수 있어요)" aria-label="메시지 입력"></textarea>
+        <button id="send" class="btn btn-primary" type="submit">보내기</button>
+      </form>
+    </section>
+
+    <footer class="footer">
+      <p>문의: 온라인피해 365센터 <strong>☎142-235</strong> (평일 09:00~18:00)</p>
+      <p>이 안내는 법적 판단이 아닙니다.</p>
+    </footer>
+  </main>
+  <script src="/app.js"></script>
+</body>
+</html>
