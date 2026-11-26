@@ -75,6 +75,8 @@
     crisisInfo: null,
     crisisWords: [],
     crisisPairs: [],
+    intentWords: null,
+    replyN: 0,
     facts: {},
     mode: 'button', // live(AI 정리) · demo(시연 값) · button(버튼으로 고른 값)
     answeredBy: null,
@@ -290,6 +292,74 @@
     b.appendChild(t);
     b.appendChild(p);
     row('bot', b);
+  }
+
+  // ----- 감정·감사·추가 질문 -----
+  // 사건 설명이 아닌 말(고맙다, 힘들다, 질문)을 사건으로 오인하지 않고 따로 받는다. 단어 목록은 서버(lib/intent.js)에서 받는다.
+  // 분류 규칙은 lib/intent.js 의 classify 와 같다. 한쪽을 고치면 다른 쪽도 고친다.
+  var C365 = { label: '온라인피해 365센터', tel: '142-235', url: 'https://www.helpos.kr', note: '평일 09:00~18:00 상담' };
+  var KLAC = { label: '대한법률구조공단 법률상담', tel: '132', url: 'https://www.klac.or.kr', note: '무료 법률상담' };
+  var FEELING_REPLIES = [
+    '많이 힘드셨겠어요. 서두르지 않으셔도 돼요. 할 수 있는 것부터 하나씩 같이 볼게요.',
+    '그런 일을 겪으면 속상하고 막막한 게 당연해요. 천천히 해도 괜찮아요.',
+    '혼자 감당하기 쉽지 않은 일이에요. 지금 할 수 있는 것부터 같이 확인해 볼게요.',
+  ];
+  var CASE_EMPATHY = [
+    '많이 놀라고 속상하셨겠어요. 있었던 일부터 같이 정리해 볼게요.',
+    '힘든 일을 겪으셨네요. 차근차근 같이 정리해 볼게요.',
+  ];
+  var THANKS_REPLIES = [
+    '도움이 되었다니 다행이에요. 정리표를 챙겨서 필요한 곳에 꼭 연락해 보세요.',
+    '네, 잘 해결되길 바라요. 기관에 연락할 때 정리표를 함께 가져가세요.',
+  ];
+
+  function pick(list) {
+    var s = list[st.replyN % list.length];
+    st.replyN += 1;
+    return s;
+  }
+
+  function classifyInput(text) {
+    var w = st.intentWords;
+    if (!w) return { kind: 'case', feeling: false };
+    var compact = String(text || '').replace(/\s+/g, '');
+    function any(list) {
+      return list.some(function (x) { return compact.indexOf(x.replace(/\s+/g, '')) >= 0; });
+    }
+    var feeling = any(w.feeling);
+    if (compact.length >= w.longText || any(w.event)) return { kind: 'case', feeling: feeling };
+    if (any(w.thanks)) return { kind: 'thanks', feeling: false };
+    if (feeling) return { kind: 'feeling', feeling: true };
+    if (any(w.question)) return { kind: 'question', feeling: false };
+    return { kind: 'case', feeling: false };
+  }
+
+  // 말풍선 아래에 전화·누리집 연결 카드를 붙인다.
+  function botWithActions(text, actions) {
+    var b = bubbleEl(text);
+    actions.forEach(function (a) {
+      var c = actionCard(a);
+      c.style.marginTop = '10px';
+      b.appendChild(c);
+    });
+    return row('bot', b);
+  }
+
+  // 사건 설명이 아닌 말에 답한다. 상태(질문 진행, 결과)는 건드리지 않는다.
+  function respondOther(kind) {
+    if (kind === 'feeling') {
+      bot(pick(FEELING_REPLIES));
+      botWithActions('말로 상담받고 싶으시면 전화로 이야기할 수도 있어요.', [C365]);
+    } else if (kind === 'thanks') {
+      bot(pick(THANKS_REPLIES));
+    } else {
+      botWithActions('이 질문은 아직 여기서 바로 답해 드리기 어려워요. 아래 상담 창구에서 확인하실 수 있어요.', [C365, KLAC]);
+    }
+  }
+
+  // 이전 질문의 선택 버튼을 잠근다(같은 질문을 다시 보여 줄 때 버튼이 겹쳐 눌리지 않게).
+  function lockChips() {
+    chat.querySelectorAll('.chip:not([disabled])').forEach(function (b) { b.disabled = true; });
   }
 
   // ----- 흐름 -----
@@ -733,20 +803,41 @@
     if (!text || st.busy) return;
     input.value = '';
     // 문장 정리(/api/extract)를 거치지 않는 단계에서도 위기 표현을 먼저 검사한다(기획서: 모든 입력에서 먼저 감지).
+    var crisis = hasCrisis(text);
+    var c = classifyInput(text);
     if (st.stage === 'extra') {
       me(text);
-      if (hasCrisis(text)) flagCrisis();
+      if (crisis) flagCrisis();
+      if (c.kind !== 'case' || crisis) {
+        // 고맙다·힘들다·질문은 정리표 답으로 저장하지 않는다. 답하고 같은 질문을 다시 보여 준다.
+        if (!crisis) respondOther(c.kind);
+        lockChips();
+        askExtra();
+        return;
+      }
       answerExtra(text);
       return;
     }
     if (st.stage === 'ask' || st.stage === 'confirm') {
       me(text);
-      if (hasCrisis(text)) {
+      if (crisis) {
         flagCrisis();
         bot('안내를 먼저 확인해 주세요. 원하시면 위 선택지를 골라 이어서 진행할 수 있어요.');
         return;
       }
+      if (c.kind !== 'case') {
+        respondOther(c.kind);
+        bot('위 선택지에서 이어서 골라 주세요.');
+        return;
+      }
       bot('위 선택지 중에서 골라 주세요. 처음부터 다시 하려면 아래 버튼을 눌러 주세요.');
+      return;
+    }
+    // 대기·결과 뒤: 사건 설명이 아니면 상태를 지우지 않고 답만 한다.
+    if (c.kind !== 'case') {
+      me(text);
+      if (crisis) flagCrisis();
+      else respondOther(c.kind);
       return;
     }
     if (st.stage === 'done') {
@@ -754,6 +845,8 @@
       resetState();
     }
     me(text);
+    // 감정이 섞인 사건 설명은 공감 한 줄을 먼저 붙인다(위기 표현이면 109 안내가 우선이라 붙이지 않는다).
+    if (c.feeling && !crisis) bot(pick(CASE_EMPATHY));
     extract(text);
   }
 
@@ -779,6 +872,7 @@
       if (meta.platforms) st.platforms = meta.platforms;
       st.crisisWords = meta.crisisWords || [];
       st.crisisPairs = meta.crisisPairs || [];
+      st.intentWords = meta.intentWords || null;
       resetState();
       showHome();
     } catch (e) {
