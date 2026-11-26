@@ -76,6 +76,9 @@
 | `lib/rules.js` | 규칙표(기획서 〈표 7〉), 안내 문구, 정리표 양식 |
 | `lib/crisis.js` | 위기 단어 목록 |
 | `lib/intent.js` | 이용자 말의 종류(사건 설명·감사·감정·추가 질문·인사)를 가르는 단어 목록 |
+| `lib/replies.js` | 감정·감사·인사·질문 진행 중 고정 응답 문구(화면은 서버에서 받아 씀) |
+| `scripts/export-faq.js` | 자주 묻는 질문과 고정 문구를 파일로 뽑는 스크립트. `node scripts/export-faq.js` 로 실행 |
+| `docs/자주묻는질문_목록.txt`, `docs/자주묻는질문.csv`, `docs/고정응답문구.csv` | 위 스크립트가 만든 팀 검토용 목록(질문·답변·키워드·연결·출처). 직접 고치지 말고 `lib/faq.js`·`lib/replies.js`를 고친 뒤 다시 만든다 |
 | `lib/faq.js` | 자주 묻는 질문 18개와 고정 답변(근거 문서와 출처 링크 포함, AI 호출 없음) |
 | `lib/redact.js` | 개인정보 가리기 규칙 |
 | `lib/ai.js` | AI 호출(Claude → Groq → Gemini) |
