@@ -24,23 +24,36 @@
   // 내 컴퓨터에서 실행 중인지(개발용 안내를 보여 줄지) 판단한다
   var IS_LOCAL = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
   // 정리표(진술서 초안)에 들어가는 추가 정보. 모두 건너뛸 수 있다.
+  // 거래한 앱은 앞에서 버튼으로 이미 골랐고, 가격은 송금 금액과 겹쳐서 묻지 않는다(정리표에는 '확인 필요'로 남는다).
   var EXTRA = [
     { key: 'item', text: '산 물건의 이름을 알려 주세요. 예: 무선 이어폰' },
-    { key: 'price', text: '물건 가격은 얼마였나요? 예: 150,000원' },
-    { key: 'postDate', text: '판매 글은 언제 올라온 글이었나요? 예: 2026-09-30' },
-    { key: 'app', text: '거래한 앱 이름을 알려 주세요. 예: ○○ 중고거래 앱' },
     { key: 'nick', text: '판매자의 닉네임이나 ID를 알려 주세요. 예: ○○마켓' },
     { key: 'date', text: '송금한 날짜와 시간을 알려 주세요. 예: 2026-10-02 14:10' },
     { key: 'amount', text: '송금한 금액은 얼마인가요? 예: 150,000원' },
     { key: 'bank', text: '입금한 은행 이름을 알려 주세요. 계좌번호는 신고할 때 직접 적으시면 돼요.' },
     { key: 'talk', text: '판매자와 나눈 대화의 요점을 적어 주세요(400자 이내). 예: 입금하면 내일 보낸다고 함, 이후 답이 없음' },
   ];
+  var DONE_OPTIONS = [
+    { key: 'bank', label: '은행에 연락했어요' },
+    { key: 'police', label: '경찰에 신고했어요' },
+    { key: 'platform', label: '거래 앱에 신고했어요' },
+  ];
 
   // 첫 화면의 상황 카드. 누르면 해당 값을 미리 채우고, 나머지만 버튼으로 묻는다.
   // only 는 그 질문에서 보여 줄 선택지를 좁힌다(카드와 어긋나는 답을 고르지 않게).
   var CARDS = [
+    // 카드로 이미 '못 받음'을 알았으니 수령 여부는 다시 묻지 않고, 판매자 상태 한 번으로 두 항목을 채운다.
     { title: '돈을 보냈는데 물건이 안 와요', sub: '송금한 뒤 연락이 끊겼거나 배송이 안 돼요',
-      facts: { situation: '중고거래 피해' }, only: { receipt: ['못 받음', '배송 중이라고 함'] } },
+      facts: { situation: '중고거래 피해' },
+      combo: {
+        label: '지금 판매자는 어떤 상태인가요?',
+        options: [
+          { label: '연락이 끊겼어요 (답 없음·차단)', facts: { receipt: '못 받음', contact: '답 없음·차단' } },
+          { label: '판매 글이나 계정이 사라졌어요', facts: { receipt: '못 받음', contact: '판매 글·계정 사라짐' } },
+          { label: '배송 중이라고만 하고 안 와요', facts: { receipt: '배송 중이라고 함', contact: '연락됨' } },
+          { label: '연락은 되는데 계속 미뤄요', facts: { receipt: '못 받음', contact: '연락됨' } },
+        ],
+      } },
     { title: '받은 물건이 설명과 달라요', sub: '상태가 다르거나 다른 물건·파손품, 쓸 수 없는 쿠폰이 왔어요',
       facts: { situation: '중고거래 피해' },
       only: { receipt: ['설명과 상태가 다름', '전혀 다른 물건이 옴', '배송 중 파손', '쿠폰·번호가 이미 사용됨·없음'] } },
@@ -53,6 +66,11 @@
 
   var st = {
     restrict: null,
+    platform: '',
+    platformAsked: false,
+    done: [],
+    doneAsked: false,
+    platforms: ['당근', '번개장터', '중고나라', '기타·모름'],
     questions: [],
     crisisInfo: null,
     crisisWords: [],
@@ -77,6 +95,10 @@
 
   function resetState() {
     st.restrict = null;
+    st.platform = '';
+    st.platformAsked = false;
+    st.done = [];
+    st.doneAsked = false;
     setStep(1);
     st.facts = {};
     st.mode = 'button';
@@ -147,13 +169,25 @@
       bot('편하게 적어 주세요. 있었던 일을 적거나 판매자와 나눈 대화를 그대로 붙여넣어도 돼요.\n전화번호·계좌번호·주소는 자동으로 가려서 정리해요. 통화 녹음은 파일 대신 글로 옮긴 내용을 붙여넣어 주세요.');
       var r = bot('글쓰기가 어려우면 버튼으로 고를 수도 있어요.');
       chipsIn(r, [{ label: '버튼으로 고를게요', onPick: function () { st.mode = 'button'; st.facts = blankFacts(); proceed(); } }]);
-      input.focus();
+      input.focus({ preventScroll: true });
       return;
     }
     st.mode = 'button';
     st.facts = Object.assign(blankFacts(), c.facts);
     st.restrict = c.only || null;
     me(c.title);
+    if (c.combo) {
+      st.stage = 'ask';
+      var r = bot(c.combo.label);
+      chipsIn(r, c.combo.options.map(function (o) {
+        return { label: o.label, onPick: function () {
+          Object.assign(st.facts, o.facts);
+          st.stage = 'idle';
+          proceed();
+        } };
+      }));
+      return;
+    }
     bot('알겠어요. 몇 가지만 더 확인할게요.');
     proceed();
   }
@@ -183,12 +217,19 @@
   }
 
   // ----- 말풍선 -----
-  function row(who, node) {
+  // 대화창 안에서만 스크롤한다(페이지 전체는 움직이지 않는다).
+  // 새 말풍선이 창보다 크면 맨 위부터 보이게 하고, 아니면 맨 아래로 내린다.
+  function scrollToRow(r) {
+    var tall = r.offsetHeight > chat.clientHeight - 24;
+    chat.scrollTo({ top: tall ? Math.max(r.offsetTop - 8, 0) : chat.scrollHeight, behavior: 'smooth' });
+  }
+
+  function row(who, node, keepScroll) {
     var r = document.createElement('div');
     r.className = 'msg ' + who;
     r.appendChild(node);
     chat.appendChild(r);
-    r.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    if (!keepScroll) scrollToRow(r);
     return r;
   }
 
@@ -331,12 +372,15 @@
   async function proceed() {
     setBusy(true);
     try {
-      var d = await api('/api/diagnose', { facts: st.facts, extra: st.extra, crisis: st.crisis });
+      var d = await api('/api/diagnose', { facts: st.facts, extra: st.extra, crisis: st.crisis, platform: st.platform, done: st.done });
       if (d.status === 'need') { askQuestion(d.missing[0]); return; }
-      if (!st.askedPayment && st.facts.payment === '모름') { askQuestion('payment'); return; }
+      // 범위 밖(착오송금·보이스피싱 등)은 중고거래용 질문(송금 방법·거래한 곳·정리표 항목)을 하지 않고 바로 결과를 보여 준다.
+      var outOfScope = /^범위 밖/.test(d.result);
+      if (!outOfScope && !st.askedPayment && st.facts.payment === '모름') { askQuestion('payment'); return; }
+      if (!outOfScope && !st.platformAsked) { askPlatform(); return; }
+      if (!outOfScope && !st.doneAsked) { askDone(); return; }
       if (!st.extraDone) {
-        // 범위 밖(착오송금·보이스피싱 등)은 중고거래용 정리표 항목을 묻지 않고 바로 결과를 보여 준다.
-        if (/^범위 밖/.test(d.result)) { fillExtra(); renderResult(d); return; }
+        if (outOfScope) { fillExtra(); renderResult(d); return; }
         offerExtra();
         return;
       }
@@ -347,6 +391,57 @@
     } finally {
       setBusy(false);
     }
+  }
+
+  // 어디서 거래했는지 묻는다. 당근·번개장터·중고나라는 신고 방법이 달라서, 맞는 방법을 알려 주려고 묻는다.
+  function askPlatform() {
+    st.stage = 'ask';
+    st.platformAsked = true;
+    var r = bot('어디에서 거래하셨나요?\n거래한 곳마다 신고 방법이 달라서, 맞는 방법을 알려 드릴게요.');
+    chipsIn(r, st.platforms.map(function (p) {
+      return { label: p, onPick: function () { st.platform = p; st.stage = 'idle'; proceed(); } };
+    }));
+  }
+
+  // 이미 한 일을 모두 고르게 한다. 한 일은 다시 시키지 않고 기록만 남기게 안내한다.
+  function askDone() {
+    st.stage = 'ask';
+    st.doneAsked = true;
+    var r = bot('지금까지 해 본 일이 있으면 모두 눌러 주세요. 없으면 바로 "다음"을 누르세요.');
+    var group = document.createElement('div');
+    group.className = 'chips';
+    DONE_OPTIONS.forEach(function (o) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'chip';
+      b.textContent = o.label;
+      b.setAttribute('aria-pressed', 'false');
+      b.addEventListener('click', function () {
+        b.setAttribute('aria-pressed', b.getAttribute('aria-pressed') === 'true' ? 'false' : 'true');
+      });
+      group.appendChild(b);
+    });
+    var next = document.createElement('button');
+    next.type = 'button';
+    next.className = 'chip chip-next';
+    next.textContent = '다음';
+    next.addEventListener('click', function () {
+      var picked = [];
+      var labels = [];
+      group.querySelectorAll('button.chip').forEach(function (btn, i) {
+        if (i < DONE_OPTIONS.length && btn.getAttribute('aria-pressed') === 'true') {
+          picked.push(DONE_OPTIONS[i].key);
+          labels.push(DONE_OPTIONS[i].label);
+        }
+      });
+      group.querySelectorAll('button').forEach(function (x) { x.disabled = true; });
+      st.done = picked;
+      me(labels.length ? labels.join(', ') : '아직 없어요');
+      st.stage = 'idle';
+      proceed();
+    });
+    group.appendChild(next);
+    r.querySelector('.bubble').appendChild(group);
   }
 
   // 정리표를 더 채울지 먼저 묻는다. 결과는 이 질문과 상관없이 바로 볼 수 있다.
@@ -457,105 +552,160 @@
     }
   }
 
+  function el(tag, cls, text) {
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text !== undefined) n.textContent = text;
+    return n;
+  }
+
+  // 클립보드에 복사한다. 막혀 있으면 임시 입력창으로 한 번 더 시도한다.
+  function copyText(text, btn) {
+    var label = btn.textContent;
+    function ok() { btn.textContent = '복사했어요'; setTimeout(function () { btn.textContent = label; }, 2000); }
+    function fallback() {
+      try {
+        var ta = document.createElement('textarea');
+        ta.value = text;
+        ta.setAttribute('readonly', '');
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        var done = document.execCommand('copy');
+        ta.remove();
+        if (done) ok(); else btn.textContent = '복사하지 못했어요. 직접 선택해 주세요';
+      } catch (e) {
+        btn.textContent = '복사하지 못했어요. 직접 선택해 주세요';
+      }
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(ok, fallback);
+    } else {
+      fallback();
+    }
+  }
+
+  // 전화·누리집으로 바로 연결하는 카드
+  function actionCard(a) {
+    var box = el('div', 'action');
+    var txt = el('div', 'action-text');
+    txt.appendChild(el('strong', '', a.label));
+    if (a.note) txt.appendChild(el('span', '', a.note));
+    box.appendChild(txt);
+    var btns = el('div', 'action-btns');
+    if (a.tel) {
+      var t = el('a', 'btn-link', '☎ ' + a.tel + ' 전화');
+      t.href = 'tel:' + a.tel.replace(/[^0-9]/g, '');
+      btns.appendChild(t);
+    }
+    if (a.url) {
+      var u = el('a', 'btn-link ghost', '누리집 열기');
+      u.href = a.url;
+      u.target = '_blank';
+      u.rel = 'noopener noreferrer';
+      btns.appendChild(u);
+    }
+    box.appendChild(btns);
+    return box;
+  }
+
   function renderResult(d) {
     st.stage = 'done';
     st.sheet = d.sheet;
 
     setStep(3);
 
-    var card = document.createElement('div');
-    card.className = 'result-card ' + d.color;
-    var label = document.createElement('p');
-    label.className = 'result-label';
-    label.textContent = '안내 결과 · ' + d.result;
-    var title = document.createElement('h2');
-    title.textContent = d.title;
-    var note = document.createElement('p');
-    note.className = 'result-note';
-    note.textContent = d.note;
-    card.appendChild(label);
-    card.appendChild(title);
-    card.appendChild(note);
+    var card = el('div', 'result-card ' + d.color);
+    card.appendChild(el('p', 'result-label', '안내 결과 · ' + d.result));
+    card.appendChild(el('h2', '', d.title));
+    card.appendChild(el('p', 'result-note', d.note));
 
-    var h = document.createElement('h3');
-    h.textContent = '지금 할 일';
-    card.appendChild(h);
-    var ol = document.createElement('ol');
-    ol.className = 'steps';
-    d.steps.forEach(function (s) { var li = document.createElement('li'); li.textContent = s; ol.appendChild(li); });
+    card.appendChild(el('h3', '', '지금 할 일'));
+    var ol = el('ol', 'steps');
+    d.steps.forEach(function (s) { ol.appendChild(el('li', '', s)); });
     card.appendChild(ol);
 
-    var h2 = document.createElement('h3');
-    h2.textContent = '맞는 기관';
-    card.appendChild(h2);
-    var ul = document.createElement('ul');
-    ul.className = 'institutions';
-    d.institutions.forEach(function (s) { var li = document.createElement('li'); li.textContent = s; ul.appendChild(li); });
-    card.appendChild(ul);
+    if (d.actions && d.actions.length) {
+      card.appendChild(el('h3', '', '바로 연결하기'));
+      var acts = el('div', 'actions');
+      d.actions.forEach(function (a) { acts.appendChild(actionCard(a)); });
+      card.appendChild(acts);
+    }
+
+    if (d.platformGuide) {
+      card.appendChild(el('h3', '', d.platformGuide.title));
+      var gl = el('ul', 'guide-list');
+      d.platformGuide.steps.forEach(function (s) { gl.appendChild(el('li', '', s)); });
+      card.appendChild(gl);
+    }
+
+    if (d.refund) {
+      card.appendChild(el('h3', '', d.refund.title));
+      var rl = el('ul', 'guide-list');
+      d.refund.items.forEach(function (s) { rl.appendChild(el('li', '', s)); });
+      card.appendChild(rl);
+    }
 
     if (d.draft) {
-      var fold = document.createElement('details');
-      fold.className = 'fold';
-      var sum = document.createElement('summary');
-      sum.textContent = '판매자에게 보낼 요청 메시지 초안 보기';
-      var dr = document.createElement('pre');
-      dr.className = 'sheet';
-      dr.textContent = d.draft;
-      fold.appendChild(sum);
-      fold.appendChild(dr);
+      var fold = el('details', 'fold');
+      fold.appendChild(el('summary', '', '판매자에게 보낼 요청 메시지 초안 보기'));
+      fold.appendChild(el('pre', 'sheet', d.draft));
+      var cp = el('button', 'btn-link copy', '초안 복사');
+      cp.type = 'button';
+      cp.addEventListener('click', function () { copyText(d.draft, cp); });
+      fold.appendChild(cp);
       card.appendChild(fold);
     }
-    (d.notes || []).forEach(function (n) {
-      var np = document.createElement('p');
-      np.className = 'notes';
-      np.textContent = n;
-      card.appendChild(np);
-    });
+    (d.notes || []).forEach(function (n) { card.appendChild(el('p', 'notes', n)); });
+
+    if (d.sources && d.sources.length) {
+      var src = el('details', 'fold sources');
+      src.appendChild(el('summary', '', '근거 자료 보기'));
+      var sl = el('ul', 'guide-list');
+      d.sources.forEach(function (s) {
+        var li = el('li');
+        var a = el('a', '', s.name);
+        a.href = s.url;
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        li.appendChild(a);
+        sl.appendChild(li);
+      });
+      src.appendChild(sl);
+      card.appendChild(src);
+    }
     // 어떤 근거로 나온 결과인지(규칙 번호, 정리 방식)는 작게 남긴다.
-    var meta = document.createElement('p');
-    meta.className = 'result-meta';
-    meta.textContent = (d.rule ? '적용 규칙 ' + d.rule + ' · ' : '') + sourceLabel();
-    card.appendChild(meta);
+    card.appendChild(el('p', 'result-meta', (d.rule ? '적용 규칙 ' + d.rule + ' · ' : '') + sourceLabel()));
 
-    var wide = document.createElement('div');
-    wide.className = 'bubble wide';
+    var wide = el('div', 'bubble wide');
     wide.appendChild(card);
-    row('bot', wide);
+    var resultRow = row('bot', wide);
 
-    var sheetBox = document.createElement('div');
-    sheetBox.className = 'bubble wide';
-    var box = document.createElement('div');
-    box.className = 'sheet-box';
-    var intro = document.createElement('p');
-    intro.className = 'bubble-title';
-    intro.textContent = '증거 정리표';
-    var hint = document.createElement('p');
-    hint.className = 'hint';
-    hint.textContent = '내려받아 기관에 가져가세요. 제출은 직접 하셔야 해요.';
-    var fold2 = document.createElement('details');
-    fold2.className = 'fold';
-    var sum2 = document.createElement('summary');
-    sum2.textContent = '정리표 내용 확인하기';
-    var pre = document.createElement('pre');
-    pre.className = 'sheet';
-    pre.textContent = st.sheet;
-    fold2.appendChild(sum2);
-    fold2.appendChild(pre);
-    var dl = document.createElement('button');
-    dl.type = 'button';
-    dl.className = 'btn btn-primary btn-block';
-    dl.textContent = '정리표 내려받기 (.txt)';
-    dl.addEventListener('click', onDownload);
-    box.appendChild(intro);
-    box.appendChild(hint);
+    var sheetBox = el('div', 'bubble wide');
+    var box = el('div', 'sheet-box');
+    box.appendChild(el('p', 'bubble-title', '증거 정리표'));
+    box.appendChild(el('p', 'hint', '내려받아 기관에 가져가세요. 제출은 직접 하셔야 해요.'));
+    var fold2 = el('details', 'fold');
+    fold2.appendChild(el('summary', '', '정리표 내용 확인하기'));
+    fold2.appendChild(el('pre', 'sheet', st.sheet));
     box.appendChild(fold2);
+    var dl = el('button', 'btn btn-primary btn-block', '정리표 내려받기 (.txt)');
+    dl.type = 'button';
+    dl.addEventListener('click', onDownload);
     box.appendChild(dl);
+    var cpSheet = el('button', 'btn-link copy', '정리표 전체 복사');
+    cpSheet.type = 'button';
+    cpSheet.addEventListener('click', function () { copyText(st.sheet, cpSheet); });
+    box.appendChild(cpSheet);
     sheetBox.appendChild(box);
     row('bot', sheetBox);
 
     bot(d.disclaimer, 'muted');
     var r = bot('다른 상황도 확인해 보시겠어요?');
     chipsIn(r, [{ label: '처음으로 돌아가기', onPick: restartAll }]);
+    // 결과 카드가 길어서 맨 아래로 내리지 않고, 결과의 맨 위부터 보이게 한다.
+    scrollToRow(resultRow);
   }
 
   function onDownload() {
@@ -626,6 +776,7 @@
       var meta = await api('/api/diagnose');
       st.questions = meta.questions;
       st.crisisInfo = meta.crisisInfo;
+      if (meta.platforms) st.platforms = meta.platforms;
       st.crisisWords = meta.crisisWords || [];
       st.crisisPairs = meta.crisisPairs || [];
       resetState();
