@@ -162,6 +162,7 @@
       wrap.appendChild(t);
       wrap.appendChild(s);
       b.appendChild(wrap);
+      b.disabled = true; // 질문 목록을 받기 전에 누르면 흐름이 꼬이므로, init() 이 목록을 받은 뒤에 연다
       b.addEventListener('click', function () { startCard(c); });
       box.appendChild(b);
     });
@@ -680,7 +681,7 @@
       var d = await api('/api/extract', { text: text });
       thinking.remove();
       showRedaction(d);
-      if (d.crisis) flagCrisis();
+      if (d.crisis && !st.crisis) flagCrisis();
       if (d.facts) {
         st.facts = d.facts;
         st.mode = 'live';
@@ -937,7 +938,9 @@
     }
     me(text);
     // 감정이 섞인 사건 설명은 공감 한 줄을 먼저 붙인다(위기 표현이면 109 안내가 우선이라 붙이지 않는다).
-    if (c.feeling && !crisis) bot(pick(CASE_EMPATHY));
+    // 위기 표현은 문장 정리(서버·AI) 응답을 기다리지 않고 109 안내를 바로 띄운다.
+    if (crisis) flagCrisis();
+    else if (c.feeling) bot(pick(CASE_EMPATHY));
     extract(text);
   }
 
@@ -949,6 +952,7 @@
     $('backBtn').addEventListener('click', restartAll);
     $('demoBtn').addEventListener('click', onDemo);
     renderCards();
+    $('demoBtn').disabled = true;
     // 입력창: Enter 로 보내고, Shift+Enter 로 줄을 바꾼다
     input.addEventListener('keydown', function (e) {
       if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
@@ -967,6 +971,8 @@
       st.faq = meta.faq || [];
       st.faqFeatured = meta.faqFeatured || {};
       resetState();
+      document.querySelectorAll('.card-btn').forEach(function (x) { x.disabled = false; });
+      $('demoBtn').disabled = false;
       showHome();
     } catch (e) {
       showChat();
