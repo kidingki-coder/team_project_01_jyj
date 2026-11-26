@@ -307,19 +307,8 @@
   // 분류 규칙은 lib/intent.js 의 classify 와 같다. 한쪽을 고치면 다른 쪽도 고친다.
   var C365 = { label: '온라인피해 365센터', tel: '142-235', url: 'https://www.helpos.kr', note: '월~금 09:00~12:00, 13:00~18:00 (수신자 부담)' };
   var KLAC = { label: '대한법률구조공단 법률상담', tel: '132', url: 'https://www.klac.or.kr', note: '무료 법률상담' };
-  var FEELING_REPLIES = [
-    '많이 힘드셨겠어요. 서두르지 않으셔도 돼요. 할 수 있는 것부터 하나씩 같이 볼게요.',
-    '그런 일을 겪으면 속상하고 막막한 게 당연해요. 천천히 해도 괜찮아요.',
-    '혼자 감당하기 쉽지 않은 일이에요. 지금 할 수 있는 것부터 같이 확인해 볼게요.',
-  ];
-  var CASE_EMPATHY = [
-    '많이 놀라고 속상하셨겠어요. 있었던 일부터 같이 정리해 볼게요.',
-    '힘든 일을 겪으셨네요. 차근차근 같이 정리해 볼게요.',
-  ];
-  var THANKS_REPLIES = [
-    '도움이 되었다니 다행이에요. 정리표를 챙겨서 필요한 곳에 꼭 연락해 보세요.',
-    '네, 잘 해결되길 바라요. 기관에 연락할 때 정리표를 함께 가져가세요.',
-  ];
+  // 고정 응답 문구. 서버(lib/replies.js)에서 받아 온다.
+  var R = {};
 
   function pick(list) {
     var s = list[st.replyN % list.length];
@@ -401,7 +390,7 @@
     paras.forEach(function (t) { b.appendChild(el('p', 'faq-p', t)); });
     it.actions.forEach(function (a) { b.appendChild(actionCard(a)); });
     var note = el('p', 'faq-note');
-    note.appendChild(document.createTextNode('※ 참고 정보이며 법적 판단이 아니에요. 근거: '));
+    note.appendChild(document.createTextNode(R.faqNote));
     it.sources.forEach(function (s, i) {
       if (i) note.appendChild(document.createTextNode(' · '));
       var a = el('a', '', s.name);
@@ -415,7 +404,7 @@
     var more = matchFaq(it.q).filter(function (x) { return x.id !== it.id; }).slice(0, 2);
     if (!more.length) more = featuredFaq(it.id, 3);
     if (more.length) {
-      var r2 = bot('이런 질문도 많이 해요.');
+      var r2 = bot(R.faqMore);
       faqChips(r2, more);
     }
     // 답이 길어도 위에서부터 읽을 수 있게, 뒤에 붙인 질문 버튼이 아니라 답의 맨 위로 맞춘다.
@@ -426,19 +415,19 @@
   // 사건 설명이 아닌 말에 답한다. 상태(질문 진행, 결과)는 건드리지 않는다.
   function respondOther(kind, text) {
     if (kind === 'feeling') {
-      bot(pick(FEELING_REPLIES));
-      botWithActions('말로 상담받고 싶으시면 전화로 이야기할 수도 있어요.', [C365]);
+      bot(pick(R.feeling));
+      botWithActions(R.feelingConnect, [C365]);
     } else if (kind === 'thanks') {
-      bot(pick(THANKS_REPLIES));
+      bot(pick(R.thanks));
     } else if (kind === 'hello') {
-      bot('안녕하세요. 어떤 일이 있었는지 편하게 적어 주시거나, 처음 화면에서 상황을 골라 주세요.');
+      bot(R.hello);
     } else {
       var m = matchFaq(text);
       if (m.length) {
         answerFaq(m[0]);
       } else {
         // 근거 문서에 없는 질문은 아는 척하지 않고 상담 창구로 연결한다.
-        var r = botWithActions('이 질문은 근거 문서에서 찾지 못했어요. 아래 상담 창구에서 확인하실 수 있어요.', [C365, KLAC]);
+        var r = botWithActions(R.faqNotFound, [C365, KLAC]);
         faqChips(r, featuredFaq('', 4));
       }
     }
@@ -860,7 +849,7 @@
     row('bot', sheetBox);
 
     bot(d.disclaimer, 'muted');
-    var faqRow = bot('더 궁금한 게 있으면 눌러 보세요. 직접 물어보셔도 돼요.');
+    var faqRow = bot(R.resultFaqPrompt);
     faqChips(faqRow, featuredFaq('', 5));
     var r = bot('다른 상황도 확인해 보시겠어요?');
     chipsIn(r, [{ label: '처음으로 돌아가기', onPick: restartAll }]);
@@ -917,15 +906,15 @@
       me(text);
       if (crisis) {
         flagCrisis();
-        bot('안내를 먼저 확인해 주세요. 원하시면 위 선택지를 골라 이어서 진행할 수 있어요.');
+        bot(R.crisisWhileAsking);
         return;
       }
       if (c.kind !== 'case') {
         respondOther(c.kind, text);
-        bot('위 선택지에서 이어서 골라 주세요.');
+        bot(R.pickAbove);
         return;
       }
-      bot('위 선택지 중에서 골라 주세요. 처음부터 다시 하려면 아래 버튼을 눌러 주세요.');
+      bot(R.pickOne);
       return;
     }
     // 대기·결과 뒤: 사건 설명이 아니면 상태를 지우지 않고 답만 한다.
@@ -943,7 +932,7 @@
     // 감정이 섞인 사건 설명은 공감 한 줄을 먼저 붙인다(위기 표현이면 109 안내가 우선이라 붙이지 않는다).
     // 위기 표현은 문장 정리(서버·AI) 응답을 기다리지 않고 109 안내를 바로 띄운다.
     if (crisis) flagCrisis();
-    else if (c.feeling) bot(pick(CASE_EMPATHY));
+    else if (c.feeling) bot(pick(R.caseEmpathy));
     extract(text);
   }
 
@@ -971,6 +960,7 @@
       st.crisisWords = meta.crisisWords || [];
       st.crisisPairs = meta.crisisPairs || [];
       st.intentWords = meta.intentWords || null;
+      R = meta.replies || R;
       st.faq = meta.faq || [];
       st.faqFeatured = meta.faqFeatured || {};
       resetState();
