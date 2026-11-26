@@ -225,10 +225,13 @@
 
   // ----- 말풍선 -----
   // 대화창 안에서만 스크롤한다(페이지 전체는 움직이지 않는다).
-  // 새 말풍선이 창보다 크면 맨 위부터 보이게 하고, 아니면 맨 아래로 내린다.
+  // 새 말풍선의 맨 위가 보이게 맞춘다. 말풍선 뒤에 선택 버튼이나 다음 말풍선이 붙어도 위가 잘리지 않고,
+  // 내용이 끝에 가까우면 브라우저가 알아서 맨 아래까지만 내려가므로 버튼도 잘리지 않는다.
+  // 말풍선을 만든 직후에는 버튼이 아직 안 붙어 있으므로, 같은 순간에 붙는 내용을 모두 반영한 뒤(다음 화면 갱신 때) 계산한다.
   function scrollToRow(r) {
-    var tall = r.offsetHeight > chat.clientHeight - 24;
-    chat.scrollTo({ top: tall ? Math.max(r.offsetTop - 8, 0) : chat.scrollHeight, behavior: 'smooth' });
+    requestAnimationFrame(function () {
+      chat.scrollTo({ top: Math.max(r.offsetTop - 8, 0), behavior: 'smooth' });
+    });
   }
 
   function row(who, node, keepScroll) {
