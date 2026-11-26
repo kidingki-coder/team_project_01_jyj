@@ -76,6 +76,9 @@
     crisisWords: [],
     crisisPairs: [],
     intentWords: null,
+    faq: [],
+    faqFeatured: {},
+    result: '',
     replyN: 0,
     facts: {},
     mode: 'button', // live(AI 정리) · demo(시연 값) · button(버튼으로 고른 값)
@@ -97,6 +100,7 @@
 
   function resetState() {
     st.restrict = null;
+    st.result = '';
     st.platform = '';
     st.platformAsked = false;
     st.done = [];
@@ -297,7 +301,7 @@
   // ----- 감정·감사·추가 질문 -----
   // 사건 설명이 아닌 말(고맙다, 힘들다, 질문)을 사건으로 오인하지 않고 따로 받는다. 단어 목록은 서버(lib/intent.js)에서 받는다.
   // 분류 규칙은 lib/intent.js 의 classify 와 같다. 한쪽을 고치면 다른 쪽도 고친다.
-  var C365 = { label: '온라인피해 365센터', tel: '142-235', url: 'https://www.helpos.kr', note: '평일 09:00~18:00 상담' };
+  var C365 = { label: '온라인피해 365센터', tel: '142-235', url: 'https://www.helpos.kr', note: '월~금 09:00~12:00, 13:00~18:00 (수신자 부담)' };
   var KLAC = { label: '대한법률구조공단 법률상담', tel: '132', url: 'https://www.klac.or.kr', note: '무료 법률상담' };
   var FEELING_REPLIES = [
     '많이 힘드셨겠어요. 서두르지 않으셔도 돼요. 할 수 있는 것부터 하나씩 같이 볼게요.',
@@ -331,7 +335,9 @@
     if (any(w.thanks)) return { kind: 'thanks', feeling: false };
     if (feeling) return { kind: 'feeling', feeling: true };
     if (any(w.question)) return { kind: 'question', feeling: false };
-    return { kind: 'case', feeling: false };
+    if (any(w.hello)) return { kind: 'hello', feeling: false };
+    // 아무 신호가 없는 짧은 말(weak). 대기·결과 뒤에는 자주 묻는 질문 단어가 있으면 질문으로 본다(onSend).
+    return { kind: 'case', feeling: false, weak: true };
   }
 
   // 말풍선 아래에 전화·누리집 연결 카드를 붙인다.
@@ -345,15 +351,92 @@
     return row('bot', b);
   }
 
+  // ----- 자주 묻는 질문 -----
+  // 질문과 맞는 항목을 키워드로 찾는다. 진단 결과가 있으면 그 결과에 맞는 항목에 점수를 조금 더 준다.
+  function matchFaq(text) {
+    var compact = String(text || '').replace(/\s+/g, '');
+    var scored = [];
+    st.faq.forEach(function (it) {
+      var score = 0;
+      it.keywords.forEach(function (k) {
+        var kk = k.replace(/\s+/g, '');
+        if (compact.indexOf(kk) >= 0) score += kk.length;
+      });
+      if (score && st.result && it.forResults && it.forResults.indexOf(st.result) >= 0) score += 1;
+      if (score) scored.push({ it: it, score: score });
+    });
+    scored.sort(function (a, b) { return b.score - a.score; });
+    return scored.map(function (x) { return x.it; });
+  }
+
+  // 결과별로 먼저 보여 줄 질문들(이미 답한 질문은 뺀다)
+  function featuredFaq(skipId, limit) {
+    var ids = st.faqFeatured[st.result] || st.faqFeatured.DEFAULT || [];
+    return ids.map(function (id) {
+      return st.faq.find(function (x) { return x.id === id; });
+    }).filter(function (x) { return x && x.id !== skipId; }).slice(0, limit);
+  }
+
+  // 질문 버튼 묶음. 한 번 눌러도 잠기지 않아서 이어서 다른 질문을 볼 수 있다.
+  function faqChips(r, items) {
+    if (!items.length) return;
+    var group = el('div', 'chips');
+    items.forEach(function (it) {
+      var b = el('button', 'chip', it.q);
+      b.type = 'button';
+      b.addEventListener('click', function () { me(it.q); answerFaq(it); });
+      group.appendChild(b);
+    });
+    r.querySelector('.bubble').appendChild(group);
+  }
+
+  function answerFaq(it) {
+    var b = el('div', 'bubble faq-bubble');
+    b.appendChild(el('p', 'bubble-title', it.q));
+    var paras = (it.byResult && st.result && it.byResult[st.result]) || it.answer;
+    paras.forEach(function (t) { b.appendChild(el('p', 'faq-p', t)); });
+    it.actions.forEach(function (a) { b.appendChild(actionCard(a)); });
+    var note = el('p', 'faq-note');
+    note.appendChild(document.createTextNode('※ 참고 정보이며 법적 판단이 아니에요. 근거: '));
+    it.sources.forEach(function (s, i) {
+      if (i) note.appendChild(document.createTextNode(' · '));
+      var a = el('a', '', s.name);
+      a.href = s.url;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      note.appendChild(a);
+    });
+    b.appendChild(note);
+    var r = row('bot', b);
+    var more = matchFaq(it.q).filter(function (x) { return x.id !== it.id; }).slice(0, 2);
+    if (!more.length) more = featuredFaq(it.id, 3);
+    if (more.length) {
+      var r2 = bot('이런 질문도 많이 해요.');
+      faqChips(r2, more);
+    }
+    // 답이 길어도 위에서부터 읽을 수 있게, 뒤에 붙인 질문 버튼이 아니라 답의 맨 위로 맞춘다.
+    scrollToRow(r);
+    return r;
+  }
+
   // 사건 설명이 아닌 말에 답한다. 상태(질문 진행, 결과)는 건드리지 않는다.
-  function respondOther(kind) {
+  function respondOther(kind, text) {
     if (kind === 'feeling') {
       bot(pick(FEELING_REPLIES));
       botWithActions('말로 상담받고 싶으시면 전화로 이야기할 수도 있어요.', [C365]);
     } else if (kind === 'thanks') {
       bot(pick(THANKS_REPLIES));
+    } else if (kind === 'hello') {
+      bot('안녕하세요. 어떤 일이 있었는지 편하게 적어 주시거나, 처음 화면에서 상황을 골라 주세요.');
     } else {
-      botWithActions('이 질문은 아직 여기서 바로 답해 드리기 어려워요. 아래 상담 창구에서 확인하실 수 있어요.', [C365, KLAC]);
+      var m = matchFaq(text);
+      if (m.length) {
+        answerFaq(m[0]);
+      } else {
+        // 근거 문서에 없는 질문은 아는 척하지 않고 상담 창구로 연결한다.
+        var r = botWithActions('이 질문은 근거 문서에서 찾지 못했어요. 아래 상담 창구에서 확인하실 수 있어요.', [C365, KLAC]);
+        faqChips(r, featuredFaq('', 4));
+      }
     }
   }
 
@@ -682,6 +765,7 @@
 
   function renderResult(d) {
     st.stage = 'done';
+    st.result = d.result;
     st.sheet = d.sheet;
 
     setStep(3);
@@ -772,6 +856,8 @@
     row('bot', sheetBox);
 
     bot(d.disclaimer, 'muted');
+    var faqRow = bot('더 궁금한 게 있으면 눌러 보세요. 직접 물어보셔도 돼요.');
+    faqChips(faqRow, featuredFaq('', 5));
     var r = bot('다른 상황도 확인해 보시겠어요?');
     chipsIn(r, [{ label: '처음으로 돌아가기', onPick: restartAll }]);
     // 결과 카드가 길어서 맨 아래로 내리지 않고, 결과의 맨 위부터 보이게 한다.
@@ -805,12 +891,17 @@
     // 문장 정리(/api/extract)를 거치지 않는 단계에서도 위기 표현을 먼저 검사한다(기획서: 모든 입력에서 먼저 감지).
     var crisis = hasCrisis(text);
     var c = classifyInput(text);
+    // 물음표 없이 쓴 질문("지급정지가 안 된대요")이 새 사건으로 오인되어 진행 상태를 지우지 않게 한다.
+    // 정리표·선택지 질문 중에는 짧은 답(예: 물건 이름)과 헷갈리므로 적용하지 않는다.
+    if (c.weak && st.stage !== 'extra' && st.stage !== 'ask' && st.stage !== 'confirm' && matchFaq(text).length) {
+      c = { kind: 'question', feeling: false };
+    }
     if (st.stage === 'extra') {
       me(text);
       if (crisis) flagCrisis();
       if (c.kind !== 'case' || crisis) {
         // 고맙다·힘들다·질문은 정리표 답으로 저장하지 않는다. 답하고 같은 질문을 다시 보여 준다.
-        if (!crisis) respondOther(c.kind);
+        if (!crisis) respondOther(c.kind, text);
         lockChips();
         askExtra();
         return;
@@ -826,7 +917,7 @@
         return;
       }
       if (c.kind !== 'case') {
-        respondOther(c.kind);
+        respondOther(c.kind, text);
         bot('위 선택지에서 이어서 골라 주세요.');
         return;
       }
@@ -837,7 +928,7 @@
     if (c.kind !== 'case') {
       me(text);
       if (crisis) flagCrisis();
-      else respondOther(c.kind);
+      else respondOther(c.kind, text);
       return;
     }
     if (st.stage === 'done') {
@@ -873,6 +964,8 @@
       st.crisisWords = meta.crisisWords || [];
       st.crisisPairs = meta.crisisPairs || [];
       st.intentWords = meta.intentWords || null;
+      st.faq = meta.faq || [];
+      st.faqFeatured = meta.faqFeatured || {};
       resetState();
       showHome();
     } catch (e) {

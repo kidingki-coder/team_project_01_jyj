@@ -393,3 +393,10 @@ textarea#input:focus {
   .chat-card { padding: 12px; }
   .fact-row { grid-template-columns: 80px minmax(0, 1fr); }
 }
+
+/* 자주 묻는 질문 답변 */
+.bubble.faq-bubble { width: 100%; max-width: 100%; white-space: normal; }
+.faq-p { margin: 0 0 8px; }
+.faq-bubble .action { margin-top: 10px; }
+.faq-note { margin: 10px 0 0; font-size: 12px; color: var(--grey-700); }
+.faq-note a { color: var(--blue-600); }
